@@ -1,10 +1,10 @@
 import os
 import json
 import asyncio
-from services.email_service import EmailService
+from service.email_service import EmailService
 from model.email_model import EmailModel
 from model.person_data import PersonData
-from services.pulsar_consumer import create_pulsar_consumer
+from service.pulsar_consumer import create_pulsar_consumer
 from pulsar.schema import AvroSchema
 
 email_service = EmailService()
