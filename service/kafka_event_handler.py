@@ -62,11 +62,8 @@ async def listen_kafka_events():
         if msg is None:
             continue
         if msg.error():
-            if msg.error().code() == KafkaError.PARTITION_EOF:
-                continue
-            else:
-                print(msg.error())
-                break
+            print(msg.error())
+            break
         try:
             data_dictionary = json.loads(msg.value())
             data = PersonData(**data_dictionary)
