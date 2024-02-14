@@ -1,11 +1,10 @@
 import os
 import json
-import asyncio
+from confluent_kafka import KafkaError
 from service.email_service import EmailService
 from model.email_model import EmailModel
 from model.person_data import PersonData
-from service.pulsar_consumer import create_pulsar_consumer
-from pulsar.schema import AvroSchema
+from service.kafka_consumer import create_kafka_consumer
 
 email_service = EmailService()
 
@@ -54,22 +53,25 @@ async def process_message(data):
     else:
         print(f"Unhandled template_id: {template_id}")
 
-consumer = create_pulsar_consumer()
+consumer = create_kafka_consumer()
 
 
-async def listen_pulsar_events():
-    schema = AvroSchema(PersonData)
+async def listen_kafka_events():
     while True:
-        try:
-            msg = consumer.receive()
-            if msg is not None:
-                data_bytes = msg.data()
-                data_dict = json.loads(data_bytes)
-                data = PersonData(**data_dict)
-                await process_message(data)
-                await consumer.acknowledge(msg)
+        msg = consumer.poll(1.0)
+        if msg is None:
+            continue
+        if msg.error():
+            if msg.error().code() == KafkaError.PARTITION_EOF:
+                continue
             else:
-                await asyncio.sleep(1)
-        except Exception as e:
-            print(f'Error: {str(e)}')
-
+                print(msg.error())
+                break
+        try:
+            data_dictionary = json.loads(msg.value())
+            data = PersonData(**data_dictionary)
+            await process_message(data)
+        except json.JSONDecodeError as e:
+            print('Error decoding JSON:', e)
+        except KeyError as e:
+            print('Missing key in dictionary:', e)
