@@ -62,8 +62,11 @@ async def listen_kafka_events():
         if msg is None:
             continue
         if msg.error():
-            print(msg.error())
-            break
+            if msg.error().code() == KafkaError.UNKNOWN_TOPIC_OR_PART:
+                continue
+            else:
+                print(msg.error())
+                break
         try:
             data_dictionary = json.loads(msg.value())
             data = PersonData(**data_dictionary)
