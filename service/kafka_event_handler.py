@@ -63,10 +63,7 @@ async def listen_kafka_events():
         async for msg in consumer:
             if msg is None:
                 continue
-            if msg.error():
-                print(msg.error())
-                break
-            data_dictionary = json.loads(msg.value())
+            data_dictionary = json.loads(msg.value)
             data = PersonData(**data_dictionary)
             await process_message(data)
     except json.JSONDecodeError as e:
