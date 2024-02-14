@@ -1,10 +1,9 @@
 import os
 import json
-from confluent_kafka import KafkaError
-from service.email_service import EmailService
+from aiokafka import AIOKafkaConsumer
 from model.email_model import EmailModel
 from model.person_data import PersonData
-from service.kafka_consumer import create_kafka_consumer
+from service.email_service import EmailService
 
 email_service = EmailService()
 
@@ -48,30 +47,31 @@ async def send_new_user_notification_mail_event_kafka(data: PersonData):
 
 async def process_message(data):
     template_id = data.template_id
-    if template_id == 10:
+    if template_id == 12:
         await send_new_user_notification_mail_event_kafka(data)
     else:
         print(f"Unhandled template_id: {template_id}")
 
-consumer = create_kafka_consumer()
-
 
 async def listen_kafka_events():
-    while True:
-        msg = consumer.poll(1.0)
-        if msg is None:
-            continue
-        if msg.error():
-            if msg.error().code() == KafkaError.UNKNOWN_TOPIC_OR_PART:
+    kafka_bootstrap_server = os.environ.get('KAFKA_SERVER', 'localhost:9094')
+    kafka_group_id = os.environ.get('KAFKA_GROUP_ID', 'mail-producer')
+    kafka_topic = os.environ.get('KAFKA_TOPIC_TO_SUBSCRIBE', 'email-topic')
+    consumer = AIOKafkaConsumer(kafka_topic, bootstrap_servers=kafka_bootstrap_server, group_id=kafka_group_id)
+    await consumer.start()
+    try:
+        async for msg in consumer:
+            if msg is None:
                 continue
-            else:
+            if msg.error():
                 print(msg.error())
                 break
-        try:
             data_dictionary = json.loads(msg.value())
             data = PersonData(**data_dictionary)
             await process_message(data)
-        except json.JSONDecodeError as e:
-            print('Error decoding JSON:', e)
-        except KeyError as e:
-            print('Missing key in dictionary:', e)
+    except json.JSONDecodeError as e:
+        print('Error decoding JSON:', e)
+    except KeyError as e:
+        print('Missing key in dictionary:', e)
+    finally:
+        await consumer.stop()
